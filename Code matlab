@@ -1,0 +1,1110 @@
+%%               CTDP               %%
+%               Assignment           %
+
+%%
+cd("C:/Users/Nico/Documents/Tübingen/2. Sem/Continuous time DP/Code_data")
+
+%%%%%%%%%%%%%%%%%%%%%
+%% Loading in data %%
+%%%%%%%%%%%%%%%%%%%%%
+
+% I am loading in the data and perform first manipulations 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% prices of the bonus certificate %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+df_certificate = readtable("snapshot_history_der.csv");
+
+cert_date =  df_certificate{:,1 };
+Date = datetime(cert_date);
+cert_closing =  df_certificate{:,3 };
+cert_closing = str2double(cert_closing) / 100;
+df_certificate = table(Date, cert_closing);
+df_certificate.Properties.VariableNames = {'Date', 'Closing_cert'};
+
+% checking for NAs
+a = sum(isnan(cert_closing)); % 0 - nice
+disp("There are " + a + " nans in the dataframe concerning the certificate")
+
+%re-arranging - so that oldest pbservations are in the upper rows
+df_certificate = sortrows(df_certificate);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% prices of the underlying stock  %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+df_stock = readtable("RWE_1.csv");
+
+stock_date =  df_stock{:,1 };
+Date = datetime(stock_date);
+stock_closing1 =  df_stock{:,5 };
+
+% checking for NAs
+a2 = sum(isnan(stock_closing1)); % 0 - nice
+disp("There are " + a2 + " nans in the dataframe concerning the underlying");
+
+% important: when reading in the stock prices, some price dates do not
+% consider the comma, i.e. these are 100 fold too high - taackling this:
+stock_closing = ones(size(stock_closing1,1), 1);
+
+for i = 1:size(stock_closing,1)
+    if stock_closing1(i,1) > 1000
+        stock_closing(i,1) = stock_closing1(i,1) * 0.01;
+    else
+        stock_closing(i,1) = stock_closing1(i,1);
+    end
+end
+
+        
+% calculating rolling volatitly of stock prices - for 100 and 250 days
+rol_var_100_close = movstd(stock_closing,100);
+rol_var_250_close = movstd(stock_closing,250);
+
+% calculating (logarithmic) returns
+ln_returns = diff(log(stock_closing));
+
+% calculating rolling volatitly of stock price returns - for 100 and 250 days
+% these can be used as proxys for sigma(see sl. 111)
+
+rol_var_100_ret = movstd(ln_returns,100);
+rol_var_250_ret = movstd(ln_returns,250);
+
+
+% first values of returns and volatiity of returns needs to be added 
+% to ensure same dimensions 
+ln_returns = [0;ln_returns];
+rol_var_100_ret = [0;rol_var_100_ret];
+rol_var_250_ret = [0;rol_var_250_ret];
+
+df_stock = table(Date, stock_closing, rol_var_100_close, rol_var_250_close, ln_returns, rol_var_100_ret, rol_var_250_ret);
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Reading in data for risk free rate %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+df_rate = readtable("Bundesbank_SV_rates.csv");
+% starting 1997-08-01
+rate_date =  df_rate{:,1 };
+Date = datetime(rate_date);
+rate_rate =  df_rate{:,2 };
+rate_rate = str2double(rate_rate);
+
+a3 = sum(isnan(rate_rate(:,1)));% s0me NANs
+disp("There are " + a3 + " nans in the dataframe concerning the interest rates - this is tackled now");
+disp("This results from interest rates not being given for non-trading days");
+disp("This is circumvented by using the interest rate of the preceding day - respectively");
+
+
+% replacing all NANs with last non-nan value (respectively) 
+% therefore first obervations since they are all nans  in the beginning
+
+s1 = size(rate_rate,1);
+
+rate_rate = rate_rate(12:s1,:);
+Date = Date(12:s1,:);
+
+for i = 1:size(rate_rate,1)
+    if sum(isnan(rate_rate(i,1))) == 1
+        rate_rate(i,1) = rate_rate((i-1),1);
+    end
+end
+
+a4 = sum(isnan(rate_rate(:,1))); % now no nans
+disp("There now are " + a4 + " nans in the dataframe concerning the interest rates");
+
+% truning to percentage scale 
+rate_rate = rate_rate/ 100 / 100;
+
+df_rate = table(Date, rate_rate);
+
+% for the plots
+% https://de.mathworks.com/matlabcentral/answers/443322-fill-the-region-between-two-lines
+ 
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Window for valuation %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Here, I am determining the time window which is considered in the
+% valuation analysis 
+
+% using the 100 days after the fist 100 days of the certificates' existence
+
+date_begin = table2array(df_certificate(101,1));
+%date_final = df_certificate(201,:);
+%disp("The valuation period extends from " + date_begin + " to " + date_final);
+
+ending_date = "2022-08-19";
+rest_days_count = string( (ending_date - date_begin) / 24 );
+rest_days_count = char(rest_days_count);
+rdc = rest_days_count(1:3);
+disp("There are " + rdc + " days in between the first date of ghe valuation period and the end on the lifetime of the certificate");
+
+% numercic value for the # days 
+
+rest_d = str2double(rdc);
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Preparation for the Valuation %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+rng(1);
+
+% Here, I am coding a fitting dataframe which will be used and filled 
+% in when applying the black-scholes valuation (as a simulation)
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% später weg hiermit:
+
+a = ones(19,1);
+
+for i = 1:19
+    a(i) = 33;
+end
+
+t1 = datetime(2021,5,19);
+t2 = datetime(2021,6,6);
+t = t1:t2;
+t = t';
+
+cert_closing =  [cert_closing; a];
+Date = [cert_date; t];
+
+df_certificate = table(Date, cert_closing);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% callign it valuations %
+
+% merging with stock_df
+merge_1 = outerjoin(df_certificate, df_stock);
+
+% merging with interest rates dataframe
+merge_rates = df_rate;
+merge_rates.Properties.VariableNames = {'Date_df_stock', 'rate'};
+
+merge_2 = outerjoin(merge_1, merge_rates);
+
+% I only use the last 100 rows
+s = size(merge_2,1);
+s2 = s - 100;
+valuations = merge_2(s2:s,:);    %calling the final DF 'valuations'
+
+% keeping only one date column
+val_sing_date = valuations;
+val_sing_date = val_sing_date(:,[1 2 4 5 6 7 8 9 11]);
+valuations = val_sing_date;
+
+% removing nans, i.e. replacing them by preceding values - creating matrix without date column
+% to make this computationally efficient 
+val_no_date = valuations(:,[ 2 3 4 5 6 7 8 9]);
+col_names = val_no_date.Properties.VariableNames; % keeping these since they as column names for later tables
+val_no_date = table2array(val_no_date);
+
+% replacing the nans 
+for a = 1:size(val_no_date,2)
+    for i = 1:size(val_no_date,1)
+        if sum(isnan(val_no_date(i,a))) == 1
+            val_no_date(i,a) = val_no_date((i-1),a);
+        end
+    end
+end
+
+% replacing the nans in the valuation period by the days 
+% e.g. replacing a nan in between 09.04. and 12.04. by 10.04. & 11.04.
+% this coincides with using a 356 days - daycount measure!
+
+t1 = datetime(table2array(valuations(1,1)));
+t2 = datetime(table2array(valuations(size(valuations,1),1)));
+t = t1:t2;
+t = t';
+
+% getting the valuations data table again
+val_no_date = array2table(val_no_date);
+val_no_date.Properties.VariableNames = {'cert_closing', 'stock_closing', 'rol_var_100_close','rol_var_250_close','ln_returns','rol_var_100_ret','rol_var_250_ret','rate'};
+val_no_date.Date = t;
+
+% finally adding a variable / columns that contains info on the 
+% days until maturity ( T -t in Black Scholes)
+rest_days = linspace(rest_d, (rest_d-100),101)';
+val_no_date.rest_days = rest_days;
+
+%caling the table 'valuations' again
+valuations = val_no_date;
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Black Scholes Valuation %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+rng(1);
+
+% this part will primaly deal with the (complex) calculation of the down
+% and out put part of the bonus certificate as siggested by Hull 
+% (p.604-606)
+
+% adding two arrays which shall contain the info on the valuation of 
+% the certificate using 100 (and 250-) days rolling volatility 
+valuation_100 = ones(101,1);
+valuation_250 = ones(101,1);
+
+
+%% Using the 100 days rolling volatility as sigma
+rng(1);
+
+valuation_100 = ones(101,1);
+valuation_250 = ones(101,1);
+
+
+    % obtaining general data
+    q = mean(ln_returns);
+    H = 29.65;
+    K = 37.5 ;
+
+for d = 1:101
+    
+    % obtaining data from respective row
+    T = valuations;
+    S = table2array(T(d,2));
+    si =  table2array(T(d,3)); % 
+    t =   table2array(T(d,10) ) ;
+    r = table2array(T(d,8));
+
+    % now - performing valuation according to Hull, p. 604-606
+
+    % important measurements for final valuation:
+    
+        lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
+        y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
+        x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
+        y1 = log(H/S)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0
+
+        % also for p 
+        d1 = (log(S/K) + (r-q+0.5*si^2)*t )/ (si * sqrt(t));
+        d2 = d1 - si * sqrt(t);
+
+        % general put formula 
+        p = K * exp(-r*t) * normpdf(-d2) - S * exp(-q*t) * normpdf(-d1);
+
+        % down_and_out_put = put - put_down_and_in
+        p_di_1 = -S*normpdf(-x1) *exp(-q*t) + K * exp(-r*t) * normpdf(-x1 + si * sqrt(t) ) + S *exp(-q*t) * ( normpdf(y) - normpdf(y1) ) * (H/S)^(2*lambda);
+        p_di_2 = - K * exp(-r*t) * ( normpdf(y-si*sqrt(t)) - normpdf(y1-si*sqrt(t))  )* (H/S) ^ (2*lambda - 2) ;
+        p_di = p_di_1 - p_di_2;
+        p_do = p - p_di;
+
+        % valuation of certificate:
+        
+        % adding the price of the stock to the (zero-strike)
+        % to the down and out put price 
+        
+        valuation_100(d) = S + p_do;
+
+end
+
+
+%% Using the 250 days rolling volatility as sigma
+rng(1);
+
+
+for d = 1:101
+    
+    % obtaining data from respective row
+    T = valuations;
+    S = table2array(T(d,2));
+    si =  table2array(T(d,4)); % 
+    t =   table2array(T(d,10) );
+    r = table2array(T(d,8));
+
+    % performing valuation according to Hull, p. 604-606
+
+    % important measurements for final valuation:
+    
+        lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
+        y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
+        x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
+        y1 = log(H/S)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0
+
+        % also for p 
+        d1 = (log(S/K) + (r-q+0.5*si^2)*t )/ (si * sqrt(t));
+        d2 = d1 - si * sqrt(t);
+
+        % general put formula 
+        p = K * exp(-r*t) * normpdf(-d2) - S * exp(-q*t) * normpdf(-d1);
+
+        % down_and_out_put = put - put_down_and_in
+        p_di_1 = -S*normpdf(-x1) *exp(-q*t) + K * exp(-r*t) * normpdf(-x1 + si * sqrt(t) ) + S *exp(-q*t) * ( normpdf(y) - normpdf(y1) ) * (H/S)^(2*lambda);
+        p_di_2 = - K * exp(-r*t) * ( normpdf(y-si*sqrt(t)) - normpdf(y1-si*sqrt(t))  )* (H/S) ^ (2*lambda - 2) ;
+        p_di = p_di_1 - p_di_2;
+        p_do = p - p_di;
+
+        % valuation of certificate:
+        
+        % adding the price of the stock to the (zero-strike)
+        % to the down and out put price 
+        
+        valuation_250(d) = S + p_do;
+
+end
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% checking for differences in the valuation methods %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+differences = valuation_100 - valuation_250;
+max(differences);
+
+% Since there differences are aprox. 0, I will only consider the method of
+% using the 100 days rolling standard deviation (volatility) as sigma
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% plotting the results %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+figure();
+plot(valuations.Date, valuations.cert_closing, "--", 'LineWidth',1.3);
+hold on;
+plot(valuations.Date, valuation_100, "b", 'LineWidth',1.3);
+%hold on;
+%plot(valuations.Date, valuation_250, "b");
+%xlabel('Period of valuation', 'FontSize', 18);
+ylabel('Prices - in €', 'FontSize', 18);
+legend({'Observed market value', 'Valuation using 100 days rolling volatility'}, 'Location','southeast', 'FontSize', 12);
+ylim([28 35]);
+%tstart = datetime(2021,2,2);
+%tend = datetime(2018,6,6);
+%xlim([tstart tend]);
+grid;
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% computing error measurements %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% I shall not compute the errors of the valuation method using the 250-days
+%rolling volatility as argued above
+
+% absolute error
+abs_error_100 = mean(abs(valuation_100 - valuations.cert_closing));
+%abs_error_250 = mean(abs(valuation_250 - valuations.cert_closing));
+
+% RMSE
+rmse_100 = sqrt( mean((valuation_100 - valuations.cert_closing).^2) );
+%rmse_250 = sqrt( mean((valuation_250 - valuations.cert_closing).^2) );
+
+% quantiles of the absolute error
+abs_errors = abs(valuation_100 - valuations.cert_closing);
+
+quant_25 = quantile(abs_errors, 0.25); quant_50 = quantile(abs_errors, 0.5); quant_75 = quantile(abs_errors, 0.75);
+
+disp("Results of the error metrics:");
+disp("The mean absolute error is: " + abs_error_100 + ".");
+disp("The root mean sqaured error is: " + rmse_100 + ".");
+disp("The 0.25 quantile of the absolute error is: "  + quant_25 + " while that of the 50%-quantile is: " + quant_50 + " and that of the 75%-quantile is: " + quant_75 + ".");
+
+
+%%%%%%%%%%%%
+%% Greeks %%
+%%%%%%%%%%%%
+
+% in the following, the Greeks Delta, Gamma & Vega are obtained using
+% simulations. I shall always use equidistant steps for the underlying from 25€ to 40€
+%  in 1000 equidistant steps 
+
+underlyings = linspace(29.65,42,1000)';
+
+%%%%%%%%%%%%
+%%  Delta %%
+%%%%%%%%%%%%
+rng(1);
+
+% first day in valuation period %% 
+T = valuations;
+S1 = table2array(T(1,2));
+si= 1.7; % choosen arbitrarily
+t =   575 /365;
+r = table2array(T(1,8));
+
+% the valuation will be done as above - that is why I shall remove
+% unnessecary comments to save space 
+
+% creating empty array to be filled in 
+deltas = ones(1000,1);
+
+% since one needs to consider a higher and lower stock price and the actual
+% stock price and derive the certificate prices from them 
+
+value_certificate_higher = ones(1000,1);
+value_certificate_lower = ones(1000,1);
+
+for d = 1:1000
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%
+    % pricing derivate with stock price + 0.5 
+    % increasing stock price 
+    S = underlyings(d,1) + 0.5;
+    
+        % Same code as above 
+        lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
+        y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
+        x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
+        y1 = log(H/S)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0
+        d1 = (log(S/K) + (r-q+0.5*si^2)*t )/ (si * sqrt(t));
+        d2 = d1 - si * sqrt(t);
+        p = K * exp(-r*t) * normpdf(-d2) - S * exp(-q*t) * normpdf(-d1);
+        p_di_1 = -S*normpdf(-x1) *exp(-q*t) + K * exp(-r*t) * normpdf(-x1 + si * sqrt(t) ) + S *exp(-q*t) * ( normpdf(y) - normpdf(y1) ) * (H/S)^(2*lambda);
+        p_di_2 = - K * exp(-r*t) * ( normpdf(y-si*sqrt(t)) - normpdf(y1-si*sqrt(t))  )* (H/S) ^ (2*lambda - 2) ;
+        p_di = p_di_1 - p_di_2;
+        p_do = p - p_di;
+
+        % valuation of certificate:
+        value_certificate_higher = S + p_do;
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%
+    % pricing derivate with stock price -  0.5 
+    % increasing stock price 
+    S = underlyings(d,1) - 0.5;
+    
+        % Same code as above 
+        lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
+        y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
+        x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
+        y1 = log(H/S)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0
+        d1 = (log(S/K) + (r-q+0.5*si^2)*t )/ (si * sqrt(t));
+        d2 = d1 - si * sqrt(t);
+        p = K * exp(-r*t) * normpdf(-d2) - S * exp(-q*t) * normpdf(-d1);
+        p_di_1 = -S*normpdf(-x1) *exp(-q*t) + K * exp(-r*t) * normpdf(-x1 + si * sqrt(t) ) + S *exp(-q*t) * ( normpdf(y) - normpdf(y1) ) * (H/S)^(2*lambda);
+        p_di_2 = - K * exp(-r*t) * ( normpdf(y-si*sqrt(t)) - normpdf(y1-si*sqrt(t))  )* (H/S) ^ (2*lambda - 2) ;
+        p_di = p_di_1 - p_di_2;
+        p_do = p - p_di;
+
+        % valuation of certificate:
+        value_certificate_lower = S + p_do;
+    
+
+     % now calculating the deltas % 
+     deltas(d,1) = value_certificate_higher - value_certificate_lower;
+
+    
+end
+
+
+% adding delta = 1 for a stock price of lower than 29.65 
+% we know that delta has to be 1 in this case!
+% However, a simulation would not return this since the higher stock values
+% (+0.5) are already above the barrier - leading to unnesessary distortions
+
+delta_1 = ones(100,1);
+underlyings_1 = linspace(27,29.65,100)';
+
+deltas_total = [delta_1; deltas];
+underl_total = [ underlyings_1; underlyings];
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% 100 days to maturity  %%
+
+
+% using the same data (sigma, stock price etc.)
+%just different time to maturity
+t =   100 /365;
+
+% the valuation will be done as above - that is why I shall remove
+% unnessecary comments to save space 
+
+% creating empty array to be filled in 
+deltas_100 = ones(1000,1);
+
+% since one needs to consider a higher and lower stock price and the actual
+% stock price and derive the certificate prices from them 
+value_certificate_higher = ones(1000,1);
+value_certificate_lower = ones(1000,1);
+
+for d = 1:1000
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%
+    % pricing derivate with stock price + 0.5 
+    % increasing stock price 
+    S = underlyings(d,1) + 0.5;
+    
+        % Same code as above 
+        lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
+        y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
+        x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
+        y1 = log(H/S)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0
+        d1 = (log(S/K) + (r-q+0.5*si^2)*t )/ (si * sqrt(t));
+        d2 = d1 - si * sqrt(t);
+        p = K * exp(-r*t) * normpdf(-d2) - S * exp(-q*t) * normpdf(-d1);
+        p_di_1 = -S*normpdf(-x1) *exp(-q*t) + K * exp(-r*t) * normpdf(-x1 + si * sqrt(t) ) + S *exp(-q*t) * ( normpdf(y) - normpdf(y1) ) * (H/S)^(2*lambda);
+        p_di_2 = - K * exp(-r*t) * ( normpdf(y-si*sqrt(t)) - normpdf(y1-si*sqrt(t))  )* (H/S) ^ (2*lambda - 2) ;
+        p_di = p_di_1 - p_di_2;
+        p_do = p - p_di;
+
+        % valuation of certificate:
+        value_certificate_higher = S + p_do;
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%
+    % pricing derivate with stock price -  0.5 
+    % increasing stock price 
+    S = underlyings(d,1) - 0.5;
+    
+        % Same code as above 
+        lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
+        y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
+        x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
+        y1 = log(H/S)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0
+        d1 = (log(S/K) + (r-q+0.5*si^2)*t )/ (si * sqrt(t));
+        d2 = d1 - si * sqrt(t);
+        p = K * exp(-r*t) * normpdf(-d2) - S * exp(-q*t) * normpdf(-d1);
+        p_di_1 = -S*normpdf(-x1) *exp(-q*t) + K * exp(-r*t) * normpdf(-x1 + si * sqrt(t) ) + S *exp(-q*t) * ( normpdf(y) - normpdf(y1) ) * (H/S)^(2*lambda);
+        p_di_2 = - K * exp(-r*t) * ( normpdf(y-si*sqrt(t)) - normpdf(y1-si*sqrt(t))  )* (H/S) ^ (2*lambda - 2) ;
+        p_di = p_di_1 - p_di_2;
+        p_do = p - p_di;
+
+        % valuation of certificate:
+        value_certificate_lower = S + p_do;
+    
+
+     % now calculating the deltas % 
+     deltas_100(d,1) = value_certificate_higher - value_certificate_lower;
+
+    
+end
+
+
+% again:
+% adding delta = 1 for a stock price of lower than 29.65
+% we know that delta has to be 1 in this case!
+% However, a simulation would not return this since the higher stock values
+% (+0.5) are already above the barrier - leading to unnesessary distortions
+
+delta_1_100 = ones(100,1);
+
+deltas_total_100 = [delta_1_100; deltas_100];
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% plotting the results %%
+
+figure;
+plot(underl_total, deltas_total, "--", 'LineWidth',1.3);
+hold on;
+plot(underl_total, deltas_total_100, "b", 'LineWidth',1.3);
+xline(29.65, "--", 'LineWidth',2.0);
+xline(37.5, "--",   'LineWidth',2.0);
+xlabel('Stock prices', 'FontSize', 18);
+title("Delta", 'FontSize', 18);
+legend({'575 days to maturity', '100 days to maturity' }, 'Location','northeast', 'FontSize', 16);
+xlim([28, 42]);
+ylim([0.9, 1.4]);
+grid();
+
+
+
+%%%%%%%%%%%
+%% Gamma %%
+%%%%%%%%%%%
+rng(1);
+
+% As was done with Delta - simulate this greek for 2 different days 
+
+%% first day in valuation period %% 
+
+T = valuations;
+S1 = table2array(T(1,2));
+si= 1.0; % choosen arbitrarily
+t =   table2array(T(1,10) ) /365;
+r = table2array(T(1,8));
+
+% the valuation will be done as above - that is why I shall remove
+% unnessecary comments to save space 
+
+% creating empty array to be filled in 
+gammas = ones(1000,1);
+
+
+% since one needs to consider a higher, a lower stock price and the actual
+% stock price and derive the certificate prices from them 
+
+value_certificate = ones(1000,1);
+value_certificate_higher = ones(1000,1);
+value_certificate_lower = ones(1000,1);
+
+for d = 1:1000
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%
+    % pricing derivate with stock price + 1 
+    % increasing stock price 
+    S = underlyings(d,1) + 1;
+    
+        % Same code as above 
+        lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
+        y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
+        x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
+        y1 = log(H/S)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0
+        d1 = (log(S/K) + (r-q+0.5*si^2)*t )/ (si * sqrt(t));
+        d2 = d1 - si * sqrt(t);
+        p = K * exp(-r*t) * normpdf(-d2) - S * exp(-q*t) * normpdf(-d1);
+        p_di_1 = -S*normpdf(-x1) *exp(-q*t) + K * exp(-r*t) * normpdf(-x1 + si * sqrt(t) ) + S *exp(-q*t) * ( normpdf(y) - normpdf(y1) ) * (H/S)^(2*lambda);
+        p_di_2 = - K * exp(-r*t) * ( normpdf(y-si*sqrt(t)) - normpdf(y1-si*sqrt(t))  )* (H/S) ^ (2*lambda - 2) ;
+        p_di = p_di_1 - p_di_2;
+        p_do = p - p_di;
+
+        % valuation of certificate:
+        value_certificate_higher = S + p_do;
+
+
+            %%%%%%%%%%%%%%%%%%%%%%%%%
+    % pricing derivate with stock price + 1 
+    % increasing stock price 
+    S = underlyings(d,1) + 1;
+    
+        % Same code as above 
+        lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
+        y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
+        x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
+        y1 = log(H/S)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0
+        d1 = (log(S/K) + (r-q+0.5*si^2)*t )/ (si * sqrt(t));
+        d2 = d1 - si * sqrt(t);
+        p = K * exp(-r*t) * normpdf(-d2) - S * exp(-q*t) * normpdf(-d1);
+        p_di_1 = -S*normpdf(-x1) *exp(-q*t) + K * exp(-r*t) * normpdf(-x1 + si * sqrt(t) ) + S *exp(-q*t) * ( normpdf(y) - normpdf(y1) ) * (H/S)^(2*lambda);
+        p_di_2 = - K * exp(-r*t) * ( normpdf(y-si*sqrt(t)) - normpdf(y1-si*sqrt(t))  )* (H/S) ^ (2*lambda - 2) ;
+        p_di = p_di_1 - p_di_2;
+        p_do = p - p_di;
+
+        % valuation of certificate:
+        value_certificate_higher = S + p_do;
+
+        
+    %%%%%%%%%%%%%%%%%%%%%%%%%
+    % pricing derivate with unchanged stock price 
+    % increasing stock price 
+    
+    S = underlyings(d,1);
+    
+        % Same code as above 
+        lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
+        y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
+        x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
+        y1 = log(H/S)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0
+        d1 = (log(S/K) + (r-q+0.5*si^2)*t )/ (si * sqrt(t));
+        d2 = d1 - si * sqrt(t);
+        p = K * exp(-r*t) * normpdf(-d2) - S * exp(-q*t) * normpdf(-d1);
+        p_di_1 = -S*normpdf(-x1) *exp(-q*t) + K * exp(-r*t) * normpdf(-x1 + si * sqrt(t) ) + S *exp(-q*t) * ( normpdf(y) - normpdf(y1) ) * (H/S)^(2*lambda);
+        p_di_2 = - K * exp(-r*t) * ( normpdf(y-si*sqrt(t)) - normpdf(y1-si*sqrt(t))  )* (H/S) ^ (2*lambda - 2) ;
+        p_di = p_di_1 - p_di_2;
+        p_do = p - p_di;
+
+        % valuation of certificate:
+        value_certificate = S + p_do;
+    
+        %%%%%%%%%%%%%%%%%%%%%%%%%
+    % pricing derivate with lower stock price 
+    % increasing stock price 
+    
+    S = underlyings(d,1) - 1;
+    
+        % Same code as above 
+        lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
+        y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
+        x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
+        y1 = log(H/S)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0
+        d1 = (log(S/K) + (r-q+0.5*si^2)*t )/ (si * sqrt(t));
+        d2 = d1 - si * sqrt(t);
+        p = K * exp(-r*t) * normpdf(-d2) - S * exp(-q*t) * normpdf(-d1);
+        p_di_1 = -S*normpdf(-x1) *exp(-q*t) + K * exp(-r*t) * normpdf(-x1 + si * sqrt(t) ) + S *exp(-q*t) * ( normpdf(y) - normpdf(y1) ) * (H/S)^(2*lambda);
+        p_di_2 = - K * exp(-r*t) * ( normpdf(y-si*sqrt(t)) - normpdf(y1-si*sqrt(t))  )* (H/S) ^ (2*lambda - 2) ;
+        p_di = p_di_1 - p_di_2;
+        p_do = p - p_di;
+
+        % valuation of certificate:
+        value_certificate_lower = S + p_do;
+        % now calculating the deltas % 
+        gammas(d,1) = value_certificate_lower - 2*value_certificate + value_certificate_higher;
+
+end
+
+
+% adding delta = 1 for a stock price of lower than 29.65 
+% we know that delta has to be 1 in this case!
+% However, a simulation would not return this since the higher stock values
+% (+0.5) are already above the barrier - leading to unnesessary distortions
+
+gammas_1 = zeros(100,1);
+underlyings_1 = linspace(27,29.65,100)';
+
+gammas_total = [gammas_1; gammas];
+underl_total = [ underlyings_1; underlyings];
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% 100 days to maturity %%
+
+% as before, keeping all other hyperparamters alike but simulating the
+% gammas for 100 days until maturity
+t = 100 / 365;
+gammas_100 = ones(1000,1);
+
+
+% since one needs to consider a higher, a lower stock price and the actual
+% stock price and derive the certificate prices from them 
+
+value_certificate = ones(1000,1);
+value_certificate_higher = ones(1000,1);
+value_certificate_lower = ones(1000,1);
+
+for d = 1:1000
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%
+    % pricing derivate with stock price + 1 
+    % increasing stock price 
+    S = underlyings(d,1) + 1;
+    
+        % Same code as above 
+        lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
+        y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
+        x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
+        y1 = log(H/S)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0
+        d1 = (log(S/K) + (r-q+0.5*si^2)*t )/ (si * sqrt(t));
+        d2 = d1 - si * sqrt(t);
+        p = K * exp(-r*t) * normpdf(-d2) - S * exp(-q*t) * normpdf(-d1);
+        p_di_1 = -S*normpdf(-x1) *exp(-q*t) + K * exp(-r*t) * normpdf(-x1 + si * sqrt(t) ) + S *exp(-q*t) * ( normpdf(y) - normpdf(y1) ) * (H/S)^(2*lambda);
+        p_di_2 = - K * exp(-r*t) * ( normpdf(y-si*sqrt(t)) - normpdf(y1-si*sqrt(t))  )* (H/S) ^ (2*lambda - 2) ;
+        p_di = p_di_1 - p_di_2;
+        p_do = p - p_di;
+
+        % valuation of certificate:
+        value_certificate_higher = S + p_do;
+
+
+            %%%%%%%%%%%%%%%%%%%%%%%%%
+    % pricing derivate with stock price + 1 
+    % increasing stock price 
+    S = underlyings(d,1) + 1;
+    
+        % Same code as above 
+        lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
+        y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
+        x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
+        y1 = log(H/S)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0
+        d1 = (log(S/K) + (r-q+0.5*si^2)*t )/ (si * sqrt(t));
+        d2 = d1 - si * sqrt(t);
+        p = K * exp(-r*t) * normpdf(-d2) - S * exp(-q*t) * normpdf(-d1);
+        p_di_1 = -S*normpdf(-x1) *exp(-q*t) + K * exp(-r*t) * normpdf(-x1 + si * sqrt(t) ) + S *exp(-q*t) * ( normpdf(y) - normpdf(y1) ) * (H/S)^(2*lambda);
+        p_di_2 = - K * exp(-r*t) * ( normpdf(y-si*sqrt(t)) - normpdf(y1-si*sqrt(t))  )* (H/S) ^ (2*lambda - 2) ;
+        p_di = p_di_1 - p_di_2;
+        p_do = p - p_di;
+
+        % valuation of certificate:
+        value_certificate_higher = S + p_do;
+
+        
+    %%%%%%%%%%%%%%%%%%%%%%%%%
+    % pricing derivate with unchanged stock price 
+    % increasing stock price 
+    
+    S = underlyings(d,1);
+    
+        % Same code as above 
+        lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
+        y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
+        x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
+        y1 = log(H/S)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0
+        d1 = (log(S/K) + (r-q+0.5*si^2)*t )/ (si * sqrt(t));
+        d2 = d1 - si * sqrt(t);
+        p = K * exp(-r*t) * normpdf(-d2) - S * exp(-q*t) * normpdf(-d1);
+        p_di_1 = -S*normpdf(-x1) *exp(-q*t) + K * exp(-r*t) * normpdf(-x1 + si * sqrt(t) ) + S *exp(-q*t) * ( normpdf(y) - normpdf(y1) ) * (H/S)^(2*lambda);
+        p_di_2 = - K * exp(-r*t) * ( normpdf(y-si*sqrt(t)) - normpdf(y1-si*sqrt(t))  )* (H/S) ^ (2*lambda - 2) ;
+        p_di = p_di_1 - p_di_2;
+        p_do = p - p_di;
+
+        % valuation of certificate:
+        value_certificate = S + p_do;
+    
+        %%%%%%%%%%%%%%%%%%%%%%%%%
+    % pricing derivate with lower stock price 
+    % increasing stock price 
+    
+    S = underlyings(d,1) - 1;
+    
+        % Same code as above 
+        lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
+        y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
+        x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
+        y1 = log(H/S)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0
+        d1 = (log(S/K) + (r-q+0.5*si^2)*t )/ (si * sqrt(t));
+        d2 = d1 - si * sqrt(t);
+        p = K * exp(-r*t) * normpdf(-d2) - S * exp(-q*t) * normpdf(-d1);
+        p_di_1 = -S*normpdf(-x1) *exp(-q*t) + K * exp(-r*t) * normpdf(-x1 + si * sqrt(t) ) + S *exp(-q*t) * ( normpdf(y) - normpdf(y1) ) * (H/S)^(2*lambda);
+        p_di_2 = - K * exp(-r*t) * ( normpdf(y-si*sqrt(t)) - normpdf(y1-si*sqrt(t))  )* (H/S) ^ (2*lambda - 2) ;
+        p_di = p_di_1 - p_di_2;
+        p_do = p - p_di;
+
+        % valuation of certificate:
+        value_certificate_lower = S + p_do;
+        % now calculating the deltas % 
+        gammas_100(d,1) = value_certificate_lower - 2*value_certificate + value_certificate_higher;
+
+end
+
+% adding delta = 1 for a stock price of lower than 29.65 
+% we know that delta has to be 1 in this case!
+% However, a simulation would not return this since the higher stock values
+% (+0.5) are already above the barrier - leading to unnesessary distortions
+gammas_1_100 = zeros(100,1);
+gammas_total_100 = [gammas_1_100; gammas_100];
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% plotting the results %%
+
+figure;
+plot(underl_total, gammas_total, "--", 'LineWidth',1.3);
+hold on;
+plot(underl_total, gammas_total_100, "b", 'LineWidth',1.3);
+xline(29.65, "--", 'LineWidth',2.0);
+xline(37.5, "--",   'LineWidth',2.0);
+xlabel('Stock prices', 'FontSize', 18);
+title("Gamma", 'FontSize', 18);
+legend({'575 days to maturity', '100 days to maturity' }, 'Location','southeast', 'FontSize', 16);
+xlim([28, 42]);
+ylim([-0.12, 0.02]);
+grid();
+
+
+
+
+%
+%% lalal
+
+%
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Performance Analysis %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+rng(1);
+
+%starting from first days of valuation period!
+% using the 100-days rolling volatility of this date as the measure for sigmasqaured 
+% running the monte carlo for 575 days, i.e. until maturity
+
+p1 = table2array(T(1,2));
+sigma = table2array(T(1,6)); % 
+r = table2array(T(1,8));
+
+% the number of days left to maturity
+t = 575;
+
+% simulation 5000 different stock paths (using geometric brownian motion) 
+
+    values = ones(t, 5000);
+    
+    % starting value = stock price 
+    values(1,:) = p1;
+    
+    % running 5000 simulations from valuation date to  T
+    
+        for a = 1:5000   
+            for i = 2:t
+                values(i, a) = values((i-1),a) * exp( (r - 0.5 * sigma)*(1/365) + randn(1) * sqrt(sigma)*sqrt(1/365) );
+            end
+        end
+    
+       
+        % translating stock price at (T) into payout - also considering if barrier was reached ##
+        final_cert_prices = ones(1,5000);
+        
+        mins = ones(1,5000);
+        
+        % computing minimum values to check if barrier was breached
+        for i = 1:5000
+            mins(1,i) = min(values(:,i));
+        end
+        
+        % getting the final value depending on barrier breaching and final
+        % prices of the underlying
+        for i = 1:5000
+            if mins(1,i) < 29.65
+                final_cert_prices(1,i) = values(t, i);
+            else
+                final_cert_prices(1,i) = max(values(t, i), 37.5);
+            end
+        end 
+        
+
+    ret_pessimistic = quantile(final_cert_prices, 0.1);
+    ret_moderate = quantile(final_cert_prices, 0.5);
+    ret_optimistic = quantile(final_cert_prices, 0.9);
+
+    % initial investments 
+    cert_1 = table2array(T(1,1));
+    %10000 / cert_1 = 326.9 - I assume that the investor would have bought 319
+    %stocks 
+    
+    ret_p = (326 * ret_pessimistic) / (326 * cert_1) - 1;
+    ret_m = (326 * ret_moderate) / (326 * cert_1) - 1;
+    ret_o = (326 * ret_optimistic) / (326 * cert_1) - 1;
+    
+    o1 = 326 * ret_pessimistic;
+    o2 = 326 * ret_moderate;
+    o3 = 326 * ret_optimistic;
+    
+    disp("Results for performance analyis");
+    disp("In the pessimistic scenario, the investor would end up with " + o1 + "; i.e a return of " + ret_p + ".");
+    disp("In the moderate scenario, the investor would end up with " + o2 + "; i.e a return of " + ret_m + ".");
+    disp("In the optimistic scenario, the investor would end up with " + o3 + "; i.e a return of " + ret_o + ".");
+
+
+%%%%%%%%%%%%%%%%%%%%%
+%% Stress scenario %%
+%%%%%%%%%%%%%%%%%%%%%
+rng(1);
+
+% computing the 5 year 63 days rolling vola of "ln_returns"
+var_stressed_vola = movstd(ln_returns, 63);
+
+[n,x] = hist(var_stressed_vola, 400);
+n2 = smoothdata(n);
+vola_90 = quantile(var_stressed_vola, 0.9);
+
+%PDF
+figure();
+plot(x,n2, "blue");
+title("PDF of stressed  volatility - smoothed", 'FontSize', 18);
+xlabel("Stressed volatility", 'FontSize', 18)
+ylabel("Density", 'FontSize', 18, 'LineWidth',1.5);
+xline(vola_90, "--", 'LineWidth',2.0);
+legend({"Stressed volatility","90%-quantile"}, 'Location','northeast', 'FontSize', 18);
+grid();
+
+%CDF
+[n,x] = ecdf(var_stressed_vola);
+n2 = smoothdata(n);
+
+figure();
+plot(x,n2, "blue");
+title("CDF of stressed  volatility - smoothed", 'FontSize', 18);
+xlabel("Stressed volatility", 'FontSize', 18)
+ylabel("Cumulative Density", 'FontSize', 18, 'LineWidth',1.5);
+xline(vola_90, "--", 'LineWidth',2.0);
+legend({"Stressed volatility", "90%-quantile"}, 'Location','southeast', 'FontSize', 18);
+grid();
+
+% simulating the developments with increased sigma
+sigma = vola_90;
+
+% starting again on 26-02-2021
+t = 575;
+
+% like above, simulation 5000 times 
+values = ones(t, 5000);
+    
+% starting value = stock price 
+values(1,:) = p1;
+    
+% running 5000 simulations from valuation date to  T
+        for a = 1:5000   
+            for i = 2:t
+                values(i, a) = values((i-1),a) * exp( (r - 0.5 * sigma)*(1/365) + randn(1) * sqrt(sigma)*sqrt(1/365) );
+            end
+        end
+    
+       
+% translating stock price at (T) into payout - also considering if barrier was reached ##
+final_cert_prices = ones(1,5000);
+mins = ones(1,5000);
+        
+% computing minimum values to check if barrier was breached
+       for i = 1:5000
+           mins(1,i) = min(values(:,i));
+        end
+        
+        % getting the final value depending on barrier breaching and final
+        % prices of the underlying
+        for i = 1:5000
+            if mins(1,i) < 29.65
+                final_cert_prices(1,i) = values(t, i);
+            else
+                final_cert_prices(1,i) = max(values(t, i), 37.5);
+            end
+        end 
+    
+
+        % 5% quantle of final certificate prices
+    certificate_disc_q_5 = quantile( final_cert_prices, 0.005);
+    
+    %%% return 
+    o1 = certificate_disc_q_5 * 326;
+    o2 = (certificate_disc_q_5 * 326) / (cert_1 * 326) -1;
+    
+    disp("Results for the stress analysis:");
+    disp("In this case of increase volatility and when taking the 5% quantile of the payoff distribution, an investor would end up with " + o1 + ", which is a " + o2 + " decrease");
+    
+   
+ %%%%%%%%%%%%%%%%%%%%%%%%%
+ %% Risk classification %%
+ %%%%%%%%%%%%%%%%%%%%%%%%%
+ 
+rng(1);
+% getting it (again) by 5000 simulations and discouting the prices 
+% again treating 26-02-2021 as t0
+% using the 100-days rolling volatility of stock returns as the vola
+
+p1 = table2array(T(1,2));
+sigma= table2array(T(1,6)); % 
+r = table2array(T(1,8));
+
+% the number of days left to maturity
+t = 575;
+
+% like above, simulation 5000 times 
+
+    values = ones(t, 5000);
+    
+    % starting value = stock price 
+    values(1,:) = p1;
+    
+    % running 5000 simulations from valuation date to  T
+    
+        for a = 1:5000   
+            for i = 2:t
+                values(i, a) = values((i-1),a) * exp( (r - 0.5 * sigma)*(1/365) + randn(1) * sqrt(sigma)*sqrt(1/365) );
+            end
+        end
+    
+       
+        % translating stock price at (T) into payout - also considering if barrier was reached ##
+        final_cert_prices = ones(1,5000);
+        
+        mins = ones(1,5000);
+        
+        % computing minimum values to check if barrier was breached
+        for i = 1:5000
+            mins(1,i) = min(values(:,i));
+        end
+        
+        % getting the final value depending on barrier breaching and final
+        % prices of the underlying
+        for i = 1:5000
+            if mins(1,i) < 29.65
+                final_cert_prices(1,i) = values(t, i);
+            else
+                final_cert_prices(1,i) = max(values(t, i), 37.5);
+            end
+        end 
+        
+        % discounting the certificate prices - as stated in the assignment
+        cert_prices_disc   =  final_cert_prices * exp(-r*(t/365));
+        
+        
+% calculating the 2.5% of the relative payouts 
+relative_payouts = cert_prices_disc / cert_1;
+var_2_5 = quantile(relative_payouts, 0.025);
+        
+% calculating the VEV 
+VEV = (sqrt(3.842 - 2* log(var_2_5) ) -1.96   ) / sqrt(t/356);
+
+disp("Result for the risk classification");
+disp("The VEV calcuated is " + VEV + ", which corresponds to a MRM class of 4.");
+
+%%%%%%%%%%%%%%%
+% end of code %
+%%%%%%%%%%%%%%%
