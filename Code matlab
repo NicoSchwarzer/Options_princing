@@ -4,6 +4,80 @@
 %%
 cd("C:/Users/Nico/Documents/Tübingen/2. Sem/Continuous time DP/Code_data")
 
+
+%%%%%%%%%%%%%%%%%%%%
+%% Payoff - Plots %%
+%%%%%%%%%%%%%%%%%%%%
+
+% I am creating arbitrary (yet well-fitting) data to visualize the payout
+% structure of the bonus certificate 
+
+% for payoff structure plots, simulate data:
+
+price_at_mat = linspace(1,1501,1501);
+Underlying = linspace(1,1501,1501);
+
+% I shall differentiate between ta case where the barrier is hit and one
+% where it is not hit!
+
+%%% Case 1: barrier hit %%%
+
+% payout of certificate
+
+cert = linspace(1,1501,1501);
+
+figure;
+plot(price_at_mat, Underlying, "b", 'LineWidth',2.0);
+% hold on;
+%plot(price_at_mat, cert, "--", 'LineWidth',2.0);
+yline(0.5*1000, "--", 'LineWidth',2.0);
+yline(1200, "--", 'LineWidth',2.0);
+text(50, 600, 'Barrier', 'FontSize', 15);
+text(50, 600, 'Barrier', 'FontSize', 15);
+text(50, 1300, 'Bonus', 'FontSize', 15);
+title("Barrier hit", 'FontSize', 18);
+legend({'Payoff of underlying & certificate' }, 'Location','southeast', 'FontSize', 16);
+set(gca, 'Xtick', [], 'Ytick', []);
+xlabel('Price of underlying', 'FontSize', 18);
+ylabel('Payoffs', 'FontSize', 18);
+grid();
+
+
+%%% Case 2: barrier not hit %%%
+
+% payout of certificate
+% barrier at 600, bonus at 1300 in this ficticious example 
+
+cert_1 = linspace(1,500,500)';
+cert_2 = ones((1200-500),1) * 1200;
+cert_3 = linspace(1200,1501,301)';
+cert = [cert_1; cert_2; cert_3];
+
+
+figure();
+plot(price_at_mat', Underlying', "r", 'LineWidth',2.0);
+hold on;
+plot(price_at_mat', cert', "b", 'LineWidth',2.0);
+yline(0.5*1000, "--", 'LineWidth',2.0);
+yline(1200, "--", 'LineWidth',2.0);
+text(50, 600, 'Barrier', 'FontSize', 15);
+text(50, 600, 'Barrier', 'FontSize', 15);
+text(50, 1300, 'Bonus', 'FontSize', 15);
+title("Barrier not hit", 'FontSize', 18);
+legend({'Payoff of underlying', 'Payoff of certificate'}, 'Location','southeast', 'FontSize', 16);
+xlabel('Price of underlying', 'FontSize', 18);
+ylabel('Payoffs', 'FontSize', 18);
+grid;
+% indicating extra payoff 
+patch([price_at_mat' fliplr(price_at_mat')], [cert fliplr(Underlying')] , [0.4660, 0.6740, 0.1880]); 
+set(gca, 'Xtick', [], 'Ytick', []);
+
+
+%price_2 = [price_at_mat', flipr(price_at_mat');
+%inBetween = [cert', flipr(Underlying')];
+%fill(price_2, inBetween('g');
+
+
 %%%%%%%%%%%%%%%%%%%%%
 %% Loading in data %%
 %%%%%%%%%%%%%%%%%%%%%
@@ -39,6 +113,8 @@ df_stock = readtable("RWE_1.csv");
 stock_date =  df_stock{:,1 };
 Date = datetime(stock_date);
 stock_closing1 =  df_stock{:,5 };
+
+
 
 % checking for NAs
 a2 = sum(isnan(stock_closing1)); % 0 - nice
@@ -80,6 +156,25 @@ rol_var_250_ret = [0;rol_var_250_ret];
 df_stock = table(Date, stock_closing, rol_var_100_close, rol_var_250_close, ln_returns, rol_var_100_ret, rol_var_250_ret);
 
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Barrier ever breached %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% checking of the barrier was breached after  28-08-2020
+
+df_stock_2 = df_stock(df_stock.Date > "2020-08-27", :);
+
+min_price =min(df_stock_2.stock_closing);
+
+if min_price > 29.65
+    disp("The barrier was not breached");
+else 
+    disp("The barrier was already breached");
+end
+
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Reading in data for risk free rate %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -119,8 +214,6 @@ rate_rate = rate_rate/ 100 / 100;
 
 df_rate = table(Date, rate_rate);
 
-% for the plots
-% https://de.mathworks.com/matlabcentral/answers/443322-fill-the-region-between-two-lines
  
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Window for valuation %%
@@ -233,6 +326,9 @@ val_no_date.rest_days = rest_days;
 valuations = val_no_date;
 
 
+
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Black Scholes Valuation %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -256,7 +352,6 @@ valuation_250 = ones(101,1);
 
 
     % obtaining general data
-    q = mean(ln_returns);
     H = 29.65;
     K = 37.5 ;
 
@@ -266,29 +361,32 @@ for d = 1:101
     T = valuations;
     S = table2array(T(d,2));
     si =  table2array(T(d,3)); % 
-    t =   table2array(T(d,10) ) ;
+    t =   table2array(T(d,10) )  ;
     r = table2array(T(d,8));
+    q = r; % replacing stock drift by risk free rate
+
 
     % now - performing valuation according to Hull, p. 604-606
 
     % important measurements for final valuation:
     
-        lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
+        lambda = (r - q + 0.5*si ^2) / si ^2  ;
         y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
-        x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
-        y1 = log(H/S)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0
+        x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t); 
+        y1 = log(H/S)/(si*sqrt(t)) + lambda * si* sqrt(t);
 
         % also for p 
         d1 = (log(S/K) + (r-q+0.5*si^2)*t )/ (si * sqrt(t));
         d2 = d1 - si * sqrt(t);
 
         % general put formula 
-        p = K * exp(-r*t) * normpdf(-d2) - S * exp(-q*t) * normpdf(-d1);
+        p = K * exp(-r*t) * normcdf(-d2) - S * exp(-q*t) * normcdf(-d1);
 
+        p_di_1 = -S*normcdf(-x1) *exp(-q*t) + K * exp(-r*t) * normcdf(-x1 + si * sqrt(t) ) + S *exp(-q*t) * ( normcdf(y) - normcdf(y1) ) * (H/S)^(2*lambda);
+        p_di_2 = - K * exp(-r*t) * ( normcdf(y-si*sqrt(t)) - normcdf(y1-si*sqrt(t))  )* (H/S) ^ (2*lambda - 2) ;
+        p_di = p_di_1 + p_di_2;
+ 
         % down_and_out_put = put - put_down_and_in
-        p_di_1 = -S*normpdf(-x1) *exp(-q*t) + K * exp(-r*t) * normpdf(-x1 + si * sqrt(t) ) + S *exp(-q*t) * ( normpdf(y) - normpdf(y1) ) * (H/S)^(2*lambda);
-        p_di_2 = - K * exp(-r*t) * ( normpdf(y-si*sqrt(t)) - normpdf(y1-si*sqrt(t))  )* (H/S) ^ (2*lambda - 2) ;
-        p_di = p_di_1 - p_di_2;
         p_do = p - p_di;
 
         % valuation of certificate:
@@ -305,35 +403,29 @@ end
 rng(1);
 
 
+
 for d = 1:101
     
     % obtaining data from respective row
     T = valuations;
     S = table2array(T(d,2));
     si =  table2array(T(d,4)); % 
-    t =   table2array(T(d,10) );
+    t =   table2array(T(d,10) ) ;
     r = table2array(T(d,8));
+    q = r; % replacing stock drift by risk free rate
 
     % performing valuation according to Hull, p. 604-606
-
-    % important measurements for final valuation:
-    
-        lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
+    % i.e. the same code as above!
+        lambda = (r - q + 0.5*si ^2) / si ^2  ; 
         y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
-        x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
-        y1 = log(H/S)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0
-
-        % also for p 
+        x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);   
+        y1 = log(H/S)/(si*sqrt(t)) + lambda * si* sqrt(t);  
         d1 = (log(S/K) + (r-q+0.5*si^2)*t )/ (si * sqrt(t));
         d2 = d1 - si * sqrt(t);
-
-        % general put formula 
-        p = K * exp(-r*t) * normpdf(-d2) - S * exp(-q*t) * normpdf(-d1);
-
-        % down_and_out_put = put - put_down_and_in
-        p_di_1 = -S*normpdf(-x1) *exp(-q*t) + K * exp(-r*t) * normpdf(-x1 + si * sqrt(t) ) + S *exp(-q*t) * ( normpdf(y) - normpdf(y1) ) * (H/S)^(2*lambda);
-        p_di_2 = - K * exp(-r*t) * ( normpdf(y-si*sqrt(t)) - normpdf(y1-si*sqrt(t))  )* (H/S) ^ (2*lambda - 2) ;
-        p_di = p_di_1 - p_di_2;
+        p = K * exp(-r*t) * normcdf(-d2) - S * exp(-q*t) * normcdf(-d1);
+        p_di_1 = -S*normcdf(-x1) *exp(-q*t) + K * exp(-r*t) * normcdf(-x1 + si * sqrt(t) ) + S *exp(-q*t) * ( normcdf(y) - normcdf(y1) ) * (H/S)^(2*lambda);
+        p_di_2 = - K * exp(-r*t) * ( normcdf(y-si*sqrt(t)) - normcdf(y1-si*sqrt(t))  )* (H/S) ^ (2*lambda - 2) ;
+        p_di = p_di_1 + p_di_2;
         p_do = p - p_di;
 
         % valuation of certificate:
@@ -361,12 +453,12 @@ max(differences);
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 
 figure();
-plot(valuations.Date, valuations.cert_closing, "--", 'LineWidth',1.3);
+plot(valuations.Date, valuations.cert_closing, "--", 'LineWidth',2.0);
 hold on;
-plot(valuations.Date, valuation_100, "b", 'LineWidth',1.3);
+plot(valuations.Date, valuation_100, "b", 'LineWidth',2.0);
 %hold on;
-%plot(valuations.Date, valuation_250, "b");
-%xlabel('Period of valuation', 'FontSize', 18);
+%plot(valuations.Date, valuation_250, "r");
+xlabel('Period of valuation', 'FontSize', 18);
 ylabel('Prices - in €', 'FontSize', 18);
 legend({'Observed market value', 'Valuation using 100 days rolling volatility'}, 'Location','southeast', 'FontSize', 12);
 ylim([28 35]);
@@ -374,6 +466,8 @@ ylim([28 35]);
 %tend = datetime(2018,6,6);
 %xlim([tstart tend]);
 grid;
+
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% computing error measurements %%
@@ -418,10 +512,10 @@ rng(1);
 
 % first day in valuation period %% 
 T = valuations;
-S1 = table2array(T(1,2));
-si= 1.7; % choosen arbitrarily
+si= 1.7; % choosen arbitrarily - yet close to rol_var_250_close
 t =   575 /365;
 r = table2array(T(1,8));
+q = r; % replacing stock drift by risk free rate
 
 % the valuation will be done as above - that is why I shall remove
 % unnessecary comments to save space 
@@ -585,16 +679,16 @@ deltas_total_100 = [delta_1_100; deltas_100];
 %% plotting the results %%
 
 figure;
-plot(underl_total, deltas_total, "--", 'LineWidth',1.3);
+plot(underl_total, deltas_total, "--", 'LineWidth',2.0);
 hold on;
-plot(underl_total, deltas_total_100, "b", 'LineWidth',1.3);
+plot(underl_total, deltas_total_100, "b", 'LineWidth',2.0);
 xline(29.65, "--", 'LineWidth',2.0);
 xline(37.5, "--",   'LineWidth',2.0);
 xlabel('Stock prices', 'FontSize', 18);
 title("Delta", 'FontSize', 18);
 legend({'575 days to maturity', '100 days to maturity' }, 'Location','northeast', 'FontSize', 16);
 xlim([28, 42]);
-ylim([0.9, 1.4]);
+%ylim([0.9, 1.4]);
 grid();
 
 
@@ -613,6 +707,8 @@ S1 = table2array(T(1,2));
 si= 1.0; % choosen arbitrarily
 t =   table2array(T(1,10) ) /365;
 r = table2array(T(1,8));
+q = r; % replacing stock drift by risk free rate
+
 
 % the valuation will be done as above - that is why I shall remove
 % unnessecary comments to save space 
@@ -855,9 +951,9 @@ gammas_total_100 = [gammas_1_100; gammas_100];
 %% plotting the results %%
 
 figure;
-plot(underl_total, gammas_total, "--", 'LineWidth',1.3);
+plot(underl_total, gammas_total, "--", 'LineWidth',2.0);
 hold on;
-plot(underl_total, gammas_total_100, "b", 'LineWidth',1.3);
+plot(underl_total, gammas_total_100, "b", 'LineWidth',2.0);
 xline(29.65, "--", 'LineWidth',2.0);
 xline(37.5, "--",   'LineWidth',2.0);
 xlabel('Stock prices', 'FontSize', 18);
@@ -887,7 +983,7 @@ rng(1);
 % running the monte carlo for 575 days, i.e. until maturity
 
 p1 = table2array(T(1,2));
-sigma = table2array(T(1,6)); % 
+sigma = table2array(T(1,6)); % using sigma of stock returns as demanded by theory 
 r = table2array(T(1,8));
 
 % the number of days left to maturity
