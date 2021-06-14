@@ -1,7 +1,12 @@
-%%               CTDP               %%
-%               Assignment           %
+%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%
+%% CTDP Assignment %%
+%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%
 
-%%
+disp("Results for the CTDP - Assignment, by Nico Schwarzer, ID: 5632297")
+
+% Setting fitting working directory!
 cd("C:/Users/Nico/Documents/Tübingen/2. Sem/Continuous time DP/Code_data")
 
 
@@ -9,41 +14,38 @@ cd("C:/Users/Nico/Documents/Tübingen/2. Sem/Continuous time DP/Code_data")
 %% Payoff - Plots %%
 %%%%%%%%%%%%%%%%%%%%
 
-% I am creating arbitrary (yet well-fitting) data to visualize the payout
-% structure of the bonus certificate 
+% I simulation arbitrary payoff and Underlying_prices_prices price data for visualization purposes
 
-% for payoff structure plots, simulate data:
+maturity_price = linspace(1,1501,1501);
+Underlying_prices_prices = linspace(1,1501,1501);
 
-price_at_mat = linspace(1,1501,1501);
-Underlying = linspace(1,1501,1501);
+% Differentiation:
+% 1 -- Barrier is hit during lifetime
+% 2 -- Barrier is not hit during lifetime
 
-% I shall differentiate between ta case where the barrier is hit and one
-% where it is not hit!
-
-%%% Case 1: barrier hit %%%
+%% Case 1 --  barrier hit  during lifetime %%
 
 % payout of certificate
 
 cert = linspace(1,1501,1501);
 
 figure;
-plot(price_at_mat, Underlying, "b", 'LineWidth',2.0);
+plot(maturity_price, Underlying_prices_prices, "b", 'LineWidth',2.0);
 % hold on;
-%plot(price_at_mat, cert, "--", 'LineWidth',2.0);
+%plot(maturity_price, cert, "--", 'LineWidth',2.0);
 yline(0.5*1000, "--", 'LineWidth',2.0);
 yline(1200, "--", 'LineWidth',2.0);
 text(50, 600, 'Barrier', 'FontSize', 15);
-text(50, 600, 'Barrier', 'FontSize', 15);
-text(50, 1300, 'Bonus', 'FontSize', 15);
-title("Barrier hit", 'FontSize', 18);
-legend({'Payoff of underlying & certificate' }, 'Location','southeast', 'FontSize', 16);
+text(50, 1300, 'Bonus level', 'FontSize', 15);
+title("Case 1 - Barrier hit", 'FontSize', 18);
+legend({'Payoff of Underlying & certificate' }, 'Location','southeast', 'FontSize', 16);
 set(gca, 'Xtick', [], 'Ytick', []);
-xlabel('Price of underlying', 'FontSize', 18);
+xlabel('Price of Underlying', 'FontSize', 18);
 ylabel('Payoffs', 'FontSize', 18);
 grid();
 
 
-%%% Case 2: barrier not hit %%%
+%% Case 2 --  barrier not hit  during lifetime %%
 
 % payout of certificate
 % barrier at 600, bonus at 1300 in this ficticious example 
@@ -55,27 +57,23 @@ cert = [cert_1; cert_2; cert_3];
 
 
 figure();
-plot(price_at_mat', Underlying', "r", 'LineWidth',2.0);
+plot(maturity_price', Underlying_prices_prices', "r", 'LineWidth',2.0);
 hold on;
-plot(price_at_mat', cert', "b", 'LineWidth',2.0);
+plot(maturity_price', cert', "b", 'LineWidth',2.0);
 yline(0.5*1000, "--", 'LineWidth',2.0);
 yline(1200, "--", 'LineWidth',2.0);
 text(50, 600, 'Barrier', 'FontSize', 15);
 text(50, 600, 'Barrier', 'FontSize', 15);
 text(50, 1300, 'Bonus', 'FontSize', 15);
-title("Barrier not hit", 'FontSize', 18);
-legend({'Payoff of underlying', 'Payoff of certificate'}, 'Location','southeast', 'FontSize', 16);
-xlabel('Price of underlying', 'FontSize', 18);
+title("Case 2 - Barrier not hit", 'FontSize', 18);
+legend({'Payoff of Underlying', 'Payoff of certificate'}, 'Location','southeast', 'FontSize', 16);
+xlabel('Price of Underlying', 'FontSize', 18);
 ylabel('Payoffs', 'FontSize', 18);
-grid;
-% indicating extra payoff 
-patch([price_at_mat' fliplr(price_at_mat')], [cert fliplr(Underlying')] , [0.4660, 0.6740, 0.1880]); 
+patch([maturity_price' fliplr(maturity_price')], [cert fliplr(Underlying_prices_prices')] , [0.4660, 0.6740, 0.1880]); 
 set(gca, 'Xtick', [], 'Ytick', []);
+grid;
 
 
-%price_2 = [price_at_mat', flipr(price_at_mat');
-%inBetween = [cert', flipr(Underlying')];
-%fill(price_2, inBetween('g');
 
 
 %%%%%%%%%%%%%%%%%%%%%
@@ -88,32 +86,32 @@ set(gca, 'Xtick', [], 'Ytick', []);
 % prices of the bonus certificate %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-df_certificate = readtable("snapshot_history_der_3.csv");
+DATA_TABLE_certificate = readtable("snapshot_history_der_3.csv");
 
-cert_date =  df_certificate{:,1 };
+cert_date =  DATA_TABLE_certificate{:,1 };
 Date = datetime(cert_date);
-cert_closing =  df_certificate{:,3 };
+cert_closing =  DATA_TABLE_certificate{:,3 };
 cert_closing = str2double(cert_closing) / 100;
-df_certificate = table(Date, cert_closing);
-df_certificate.Properties.VariableNames = {'Date', 'Closing_cert'};
+DATA_TABLE_certificate = table(Date, cert_closing);
+DATA_TABLE_certificate.Properties.VariableNames = {'Date', 'Closing_cert'};
 
 % checking for NAs
 a = sum(isnan(cert_closing)); % 0 - nice
 disp("There are " + a + " nans in the data table concerning the certificate")
 
 %re-arranging - so that oldest pbservations are in the upper rows
-df_certificate = sortrows(df_certificate);
+DATA_TABLE_certificate = sortrows(DATA_TABLE_certificate);
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % prices of the underlying stock  %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-df_stock = readtable("RWE_7_6.csv");
+DATA_TABLE_underlying = readtable("RWE_7_6.csv");
 
-stock_date =  df_stock{:,1 };
+stock_date =  DATA_TABLE_underlying{:,1 };
 Date = datetime(stock_date);
-stock_closing1 =  df_stock{:,5 };
+stock_closing1 =  DATA_TABLE_underlying{:,5 };
 
 
 
@@ -154,7 +152,7 @@ ln_returns = [0;ln_returns];
 rol_var_100_ret = [0;rol_var_100_ret];
 rol_var_250_ret = [0;rol_var_250_ret];
 
-df_stock = table(Date, stock_closing, rol_var_100_close, rol_var_250_close, ln_returns, rol_var_100_ret, rol_var_250_ret);
+DATA_TABLE_underlying = table(Date, stock_closing, rol_var_100_close, rol_var_250_close, ln_returns, rol_var_100_ret, rol_var_250_ret);
 
 
 
@@ -164,9 +162,9 @@ df_stock = table(Date, stock_closing, rol_var_100_close, rol_var_250_close, ln_r
 
 % checking of the barrier was breached from 28-08-2020 onwards:
 
-df_stock_2 = df_stock(df_stock.Date > "2020-08-27", :);
+DATA_TABLE_underlying_2 = DATA_TABLE_underlying(DATA_TABLE_underlying.Date > "2020-08-27", :);
 
-min_price = min(df_stock_2.stock_closing);
+min_price = min(DATA_TABLE_underlying_2.stock_closing);
 
 if min_price > 29.65
     disp("The barrier was not breached");
@@ -184,7 +182,7 @@ end
 
 % I shall read in the parameters needed for the svennsonn method 
 %to plug these together with the time to maturity into the formula
-% for the risk free rate in the valuations!
+% for the risk free rate in the DATA_TABLE_ALL!
 
 
 % beta 0
@@ -280,7 +278,7 @@ tau_1 = tau_1 / 100 / 1000;
 tau_2 = tau_2 / 100 / 1000;
 
 
-df_rate = table(Date, beta_0, beta_1, beta_2, beta_3, tau_1, tau_2);
+DATA_TABLE_interest = table(Date, beta_0, beta_1, beta_2, beta_3, tau_1, tau_2);
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -289,65 +287,59 @@ df_rate = table(Date, beta_0, beta_1, beta_2, beta_3, tau_1, tau_2);
 rng(1);
 
 
-% creating a joint data table -  calling it "valuations" %
+% creating a joint data table -  calling it "DATA_TABLE_ALL" %
 
 % merging with stock_df
-merge_1 = outerjoin(df_certificate, df_stock);
+DATA_TABLE_JOIN1 = outerjoin(DATA_TABLE_certificate, DATA_TABLE_underlying);
 
 % merging with interest rates dataframe
-merge_rates = df_rate;
-merge_rates.Properties.VariableNames = {'Date_df_stock', 'beta_0', 'beta_1', 'beta_2', 'beta_3', 'tau_1', 'tau_2'};
+DATA_TABLE_interest.Properties.VariableNames = {'Date_DATA_TABLE_underlying', 'beta_0', 'beta_1', 'beta_2', 'beta_3', 'tau_1', 'tau_2'};
 
-merge_2 = outerjoin(merge_1, merge_rates);
+DATA_TABLE_JOIN2 = outerjoin(DATA_TABLE_JOIN1, DATA_TABLE_interest);
 
 
 % I only use the last 101 rows - these 101 days will be used as valuation
 % window!
-s = size(merge_2,1);
-s2 = s - 101;
-valuations = merge_2(s2:s,:);    %calling the final DF 'valuations'
-
-
+size_merge = size(DATA_TABLE_JOIN2,1);
+s2 = size_merge - 101;
+DATA_TABLE_ALL = DATA_TABLE_JOIN2(s2:s,:);    %calling the final DF 'DATA_TABLE_ALL'
 
 
 % keeping only one date column
-val_sing_date = valuations;
+val_sing_date = DATA_TABLE_ALL;
 val_sing_date = val_sing_date(:,[ 2 4 5 6 7 8 9 10 11 12 13 14 15 16]);
-valuations = val_sing_date;
+DATA_TABLE_ALL = val_sing_date;
 
 
 % removing nans, i.e. replacing them by preceding values - creating matrix without date column
 % to make this computationally efficient 
-val_no_date = valuations(:,[ 1 2 3 4 5 6 7  9 10 11 12 13 14]);
+DATA_TABLE_ALL_NO_DATES = DATA_TABLE_ALL(:,[ 1 2 3 4 5 6 7  9 10 11 12 13 14]);
 
-
-col_names = val_no_date.Properties.VariableNames; % keeping these since as column names for later tables
-val_no_date = table2array(val_no_date);
-
+col_names = DATA_TABLE_ALL_NO_DATES.Properties.VariableNames; % keeping these since as column names for later tables
+DATA_TABLE_ALL_NO_DATES = table2array(DATA_TABLE_ALL_NO_DATES);
 
 
 % replacing the nans 
-for a = 1:size(val_no_date,2)
-    for i = 1:size(val_no_date,1)
-        if sum(isnan(val_no_date(i,a))) == 1
-            val_no_date(i,a) = val_no_date((i-1),a);
+for a = 1:size(DATA_TABLE_ALL_NO_DATES,2)
+    for i = 1:size(DATA_TABLE_ALL_NO_DATES,1)
+        if sum(isnan(DATA_TABLE_ALL_NO_DATES(i,a))) == 1
+            DATA_TABLE_ALL_NO_DATES(i,a) = DATA_TABLE_ALL_NO_DATES((i-1),a);
         end
     end
 end
 
 
 
-% getting the valuations data table again
-val_no_date = array2table(val_no_date);
-val_no_date.Properties.VariableNames =    {'Closing_cert','stock_closing','rol_var_100_close','rol_var_250_close','ln_returns','rol_var_100_ret','rol_var_250_ret','beta_0','beta_1','beta_2','beta_3','tau_1','tau_2'};
-val_no_date.Date = valuations.Date_df_stock_merge_rates;
+% getting the DATA_TABLE_ALL data table again
+DATA_TABLE_ALL_NO_DATES = array2table(DATA_TABLE_ALL_NO_DATES);
+DATA_TABLE_ALL_NO_DATES.Properties.VariableNames =    {'Closing_cert','stock_closing','rol_var_100_close','rol_var_250_close','ln_returns','rol_var_100_ret','rol_var_250_ret','beta_0','beta_1','beta_2','beta_3','tau_1','tau_2'};
+DATA_TABLE_ALL_NO_DATES.Date = DATA_TABLE_ALL.Date_DATA_TABLE_underlying_DATA_TABLE_interest;
 
+%caling the table 'DATA_TABLE_ALL' again
+DATA_TABLE_ALL = DATA_TABLE_ALL_NO_DATES;
 
-%caling the table 'valuations' again
-valuations = val_no_date;
 
     
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Window for valuation %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -356,14 +348,14 @@ valuations = val_no_date;
 % valuation analysis 
 
 % Beginning of valuation period:
-date_begin = valuations.Date(1,1) ;
+BEGINNING_DATE = DATA_TABLE_ALL.Date(1,1) ;
 
 % Considerung date of maturity:
-ending_date = "2022-08-19";
-rest_days_count = string( (ending_date - date_begin) / 24 );
-rest_days_count = char(rest_days_count);
-rdc = rest_days_count(1:3);
-disp("There are " + rdc + " days in between the first date of ghe valuation period and the end on the lifetime of the certificate");
+ENDING_DATE = "2022-08-19";
+DAYS_UNTIL_MATURITY = string( (ENDING_DATE - BEGINNING_DATE) / 24 );
+DAYS_UNTIL_MATURITY = char(DAYS_UNTIL_MATURITY);
+rdc = DAYS_UNTIL_MATURITY(1:3);
+disp("There are " + rdc + " days in between the first date of the valuation period and the end on the lifetime of the certificate");
 
 % numercic value for the # days 
 rest_d = str2double(rdc);
@@ -372,12 +364,12 @@ rest_d = str2double(rdc);
 % finally adding a variable / a column that contains info on the 
 % days until maturity ( T -t in Black Scholes)
 rest_days = linspace(rest_d, (rest_d-101),102)';
-valuations.rest_days = rest_days;
+DATA_TABLE_ALL.rest_days = rest_days;
 
 % final date of valuation period 
-date_end = valuations.Date(size(valuations,1),1) ;
+date_end = DATA_TABLE_ALL.Date(size(DATA_TABLE_ALL,1),1) ;
 
-disp("The valuation period extends from " + string(date_begin) + " to " + string(date_end) );
+disp("The valuation period extends from " + string(BEGINNING_DATE) + " to " + string(date_end) );
 
 
 
@@ -389,23 +381,23 @@ disp("The valuation period extends from " + string(date_begin) + " to " + string
 % marituy, one can calculate the risk free rate measure
 
 % instentiating vector
-risk_f_r = zeros(size(valuations,1),1);
+risk_f_r = zeros(size(DATA_TABLE_ALL,1),1);
 
 % filling it in 
-for a = 1:size(valuations,1)
-    m = valuations.rest_days(a,1)  / 365;
-    risk_f_r(a,1) = ( valuations.beta_0(1,1) + valuations.beta_1(a,1) * exp( - m / valuations.tau_1(a,1) ) + valuations.beta_2(a,1) * ( - m / valuations.tau_1(a,1) ) + valuations.beta_3(a,1) * m / valuations.tau_2(a,1) * exp(- m / valuations.tau_2(a,1) )  ) * 0.01;
+for a = 1:size(DATA_TABLE_ALL,1)
+    m = DATA_TABLE_ALL.rest_days(a,1)  / 365;
+    risk_f_r(a,1) = ( DATA_TABLE_ALL.beta_0(1,1) + DATA_TABLE_ALL.beta_1(a,1) * exp( - m / DATA_TABLE_ALL.tau_1(a,1) ) + DATA_TABLE_ALL.beta_2(a,1) * ( - m / DATA_TABLE_ALL.tau_1(a,1) ) + DATA_TABLE_ALL.beta_3(a,1) * m / DATA_TABLE_ALL.tau_2(a,1) * exp(- m / DATA_TABLE_ALL.tau_2(a,1) )  ) * 0.01;
 end 
 
 
-% adding it to valuations data table 
-valuations.risk_f_r = risk_f_r;
+% adding it to DATA_TABLE_ALL data table 
+DATA_TABLE_ALL.risk_f_r = risk_f_r;
 
 
-% removing the svensson parameters from the valuations data table for
+% removing the svensson parameters from the DATA_TABLE_ALL data table for
 % simplicity!
 
-valuations = valuations(:, [ 1 2 3 4 5 6 7 14 15 16 ]);
+DATA_TABLE_ALL = DATA_TABLE_ALL(:, [ 1 2 3 4 5 6 7 14 15 16 ]);
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -434,47 +426,21 @@ valuation_250 = ones(102,1);
     H = 29.65;
     K = 37.5 ;
 
-for d = 1:102
+for x = 1:102
     
     % obtaining data from respective row
-    T = valuations;
-    S = table2array(T(d,2)); % stock prices
-    si =  table2array(T(d,6)); % volatility
-    t =   table2array(T(d,9) ); % days to maturity
-    r = table2array(T(d,10)); % risk free rate
+    T = DATA_TABLE_ALL;
+    S = table2array(T(x,2)); % stock prices
+    si =  table2array(T(x,6)); % volatility
+    t =   table2array(T(x,9) ); % days to maturity
+    r = table2array(T(x,10)); % risk free rate
     q = r; %  replacing stock drift by risk free rate - see sl. 107
 
 
-    % now - performing valuation according to Hull, p. 604-606
-
-    % important measurements for final valuation:
+    % now calling the function 'value_Black_Scholes'
     
-        lambda = (r - q + 0.5*si ^2) / si ^2  ;
-        y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
-        x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t); 
-        y1 = log(H/S)/(si*sqrt(t)) + lambda * si* sqrt(t);
-
-        % also for p 
-        d1 = (log(S/K) + (r-q+0.5*si^2)*t )/ (si * sqrt(t));
-        d2 = d1 - si * sqrt(t);
-
-        % general put formula 
-        p = K * exp(-r*t) * normcdf(-d2) - S * exp(-q*t) * normcdf(-d1);
-
-        p_di_1 = -S*normcdf(-x1) *exp(-q*t) + K * exp(-r*t) * normcdf(-x1 + si * sqrt(t) ) + S *exp(-q*t) * ( normcdf(y) - normcdf(y1) ) * (H/S)^(2*lambda);
-        p_di_2 = - K * exp(-r*t) * ( normcdf(y-si*sqrt(t)) - normcdf(y1-si*sqrt(t))  )* (H/S) ^ (2*lambda - 2) ;
-        p_di = p_di_1 + p_di_2;
+    valuation_100(x) = value_Black_Scholes( S, si, r, t );
  
-        % down_and_out_put = put - put_down_and_in
-        p_do = p - p_di;
-
-        % valuation of certificate:
-        
-        % adding the price of the stock to the (zero-strike)
-        % to the down and out put price 
-        
-        valuation_100(d) = S + p_do;
-
 end
 
 
@@ -483,38 +449,21 @@ rng(1);
 
 
 
-for d = 1:102
+for x = 1:102
     
     % obtaining data from respective row
-    T = valuations;
-    S = table2array(T(d,2)); % stock prices
-    si =  table2array(T(d,6)); % volatility
-    t =   table2array(T(d,9) ) ; % days to maturity
-    r = table2array(T(d,10)); % risk free rate
+    T = DATA_TABLE_ALL;
+    S = table2array(T(x,2)); % stock prices
+    si =  table2array(T(x,6)); % volatility
+    t =   table2array(T(x,9) ) ; % days to maturity
+    r = table2array(T(x,10)); % risk free rate
     q = r; %  replacing stock drift by risk free rate - see sl. 107
 
     
-    % performing valuation according to Hull, p. 604-606
-    % i.e. the same code as above!
-        lambda = (r - q + 0.5*si ^2) / si ^2  ; 
-        y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
-        x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);   
-        y1 = log(H/S)/(si*sqrt(t)) + lambda * si* sqrt(t);  
-        d1 = (log(S/K) + (r-q+0.5*si^2)*t )/ (si * sqrt(t));
-        d2 = d1 - si * sqrt(t);
-        p = K * exp(-r*t) * normcdf(-d2) - S * exp(-q*t) * normcdf(-d1);
-        p_di_1 = -S*normcdf(-x1) *exp(-q*t) + K * exp(-r*t) * normcdf(-x1 + si * sqrt(t) ) + S *exp(-q*t) * ( normcdf(y) - normcdf(y1) ) * (H/S)^(2*lambda);
-        p_di_2 = - K * exp(-r*t) * ( normcdf(y-si*sqrt(t)) - normcdf(y1-si*sqrt(t))  )* (H/S) ^ (2*lambda - 2) ;
-        p_di = p_di_1 + p_di_2;
-        p_do = p - p_di;
-
-        % valuation of certificate:
-        
-        % adding the price of the stock to the (zero-strike)
-        % to the down and out put price 
-        
-        valuation_250(d) = S + p_do;
-
+    % now calling the function 'value_Black_Scholes'
+    
+    valuation_250(x) = value_Black_Scholes( S, si, r, t );
+ 
 end
 
 
@@ -523,7 +472,12 @@ end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 differences = valuation_100 - valuation_250;
-max(differences);
+max_diff = max(differences);
+
+if max_diff < 0.2
+   disp("The valuations using the different rolling volatilities are extremely similar, hence only the results using the 100 days rolling volatility are reported.") 
+end
+
 
 
 % Since there differences are aprox. 0, I will only consider the method of
@@ -534,11 +488,11 @@ max(differences);
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 
 figure();
-plot(valuations.Date, valuations.Closing_cert, "--", 'LineWidth',2.0);
+plot(DATA_TABLE_ALL.Date, DATA_TABLE_ALL.Closing_cert, "--", 'LineWidth',2.0);
 hold on;
-plot(valuations.Date, valuation_100, "b", 'LineWidth',2.0);
+plot(DATA_TABLE_ALL.Date, valuation_100, "b", 'LineWidth',2.0);
 %hold on;
-%plot(valuations.Date, valuation_250, "r");
+%plot(DATA_TABLE_ALL.Date, valuation_250, "r");
 %xlabel('Period of valuation', 'FontSize', 18);
 ylabel('Prices - in €', 'FontSize', 18);
 legend({'Observed market value', 'Valuation using 100 days rolling volatility'}, 'Location','southeast', 'FontSize', 12);
@@ -558,15 +512,15 @@ grid;
 %rolling volatility as argued above
 
 % absolute error
-abs_error_100 = mean(abs(valuation_100 - valuations.Closing_cert));
-%abs_error_250 = mean(abs(valuation_250 - valuations.Closing_cert));
+abs_error_100 = mean(abs(valuation_100 - DATA_TABLE_ALL.Closing_cert));
+%abs_error_250 = mean(abs(valuation_250 - DATA_TABLE_ALL.Closing_cert));
 
 % RMSE
-rmse_100 = sqrt( mean((valuation_100 - valuations.Closing_cert).^2) );
-%rmse_250 = sqrt( mean((valuation_250 - valuations.Closing_cert).^2) );
+rmse_100 = sqrt( mean((valuation_100 - DATA_TABLE_ALL.Closing_cert).^2) );
+%rmse_250 = sqrt( mean((valuation_250 - DATA_TABLE_ALL.Closing_cert).^2) );
 
 % quantiles of the absolute error
-abs_errors = abs(valuation_100 - valuations.Closing_cert);
+abs_errors = abs(valuation_100 - DATA_TABLE_ALL.Closing_cert);
 
 quant_25 = quantile(abs_errors, 0.25); quant_50 = quantile(abs_errors, 0.5); quant_75 = quantile(abs_errors, 0.75);
 
@@ -594,8 +548,11 @@ underlyings = linspace(29.65,42,1000)';
 
 rng(1);
 
-% first day in valuation period %% 
-T = valuations;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% 120 days to maturity  %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+T = DATA_TABLE_ALL;
 si= 0.4; % choosen arbitrarily 
 t =   120/365;
 r = 0.02;
@@ -620,7 +577,7 @@ for d = 1:1000
     % increasing stock price 
     S = underlyings(d,1) + 0.5;
     
-        % Same code as above 
+        % Same code as in value_Black_Scholes function 
         lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
         y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
         x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
@@ -641,7 +598,7 @@ for d = 1:1000
     % increasing stock price 
     S = underlyings(d,1) - 0.5;
     
-        % Same code as above 
+    % Same code as in value_Black_Scholes function 
         lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
         y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
         x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
@@ -704,7 +661,7 @@ for d = 1:1000
     % increasing stock price 
     S = underlyings(d,1) + 0.5;
     
-        % Same code as above 
+        % Same code as in value_Black_Scholes function 
         lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
         y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
         x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
@@ -725,7 +682,7 @@ for d = 1:1000
     % increasing stock price 
     S = underlyings(d,1) - 0.5;
     
-        % Same code as above 
+        % Same code as in value_Black_Scholes function 
         lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
         y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
         x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
@@ -786,13 +743,14 @@ grid();
 
 rng(1);
 
-% As was done with Delta - simulate this greek for 2 different days 
+% As was done with Delta - simulate this greek for 2 different days
+% i.e. also for 120 and 80 days until maturity
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% 120 days until maturity %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-T = valuations;
+T = DATA_TABLE_ALL;
 S1 = table2array(T(1,2));
 si= 0.5; % choosen arbitrarily
 t =   120 / 365; %table2array(T(1,10) ) ;
@@ -824,7 +782,7 @@ for d = 1:1000
     % increasing stock price 
     S = underlyings(d,1) + 1;
     
-        % Same code as above 
+        % Same code as in value_Black_Scholes function 
         lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
         y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
         x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
@@ -847,7 +805,7 @@ for d = 1:1000
     
     S = underlyings(d,1);
     
-        % Same code as above 
+        % Same code as in value_Black_Scholes function 
         lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
         y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
         x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
@@ -869,8 +827,8 @@ for d = 1:1000
     
     S = underlyings(d,1) - 1;
     
-        % Same code as above 
-        lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
+       % Same code as in value_Black_Scholes function 
+       lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
         y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
         x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
         y1 = log(H/S)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0
@@ -927,7 +885,7 @@ for d = 1:1000
     % increasing stock price 
     S = underlyings(d,1) + 1;
     
-        % Same code as above 
+        % Same code as in value_Black_Scholes function 
         lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
         y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
         x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
@@ -950,8 +908,7 @@ for d = 1:1000
     
     S = underlyings(d,1);
     
-        % Same code as above 
-      
+        % Same code as in value_Black_Scholes function 
         lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
         y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
         x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
@@ -973,7 +930,7 @@ for d = 1:1000
     
     S = underlyings(d,1) - 1;
     
-        % Same code as above 
+        % Same code as in value_Black_Scholes function 
         lambda = (r - q + 0.5*si ^2) / si ^2  ; % maybe just si? - for all!
         y = log(H^2/ S*K)/(si*sqrt(t)) + lambda * si * sqrt(t);
         x1 = log(S/H)/(si*sqrt(t)) + lambda * si* sqrt(t);  % or S0 
@@ -1043,7 +1000,7 @@ rng(1);
 % considering the time value of 28.02.2021 to 28.08.2022 ( i.e. maturity)
 % i.e. 18 full months to go 
 
-% 28.02. corresponds to the third row in the valuations (or T) data
+% 28.02. corresponds to the third row in the DATA_TABLE_ALL (or T) data
 % table
 
 T_first_date = T(3,:);
@@ -1156,7 +1113,7 @@ for i = 2:18
     val_port(i,1) = stocks_before(i,1) + bonds_before(i,1);
     
     % 4) Value of the certificate - calculated based on stock price 
-    val_cert(i,1) = value( values(i,1), sigma, r, dtg(i,1) );
+    val_cert(i,1) = value_Black_Scholes( values(i,1), sigma, r, dtg(i,1) );
 
     % 5) Absolute hedging error 
     hedg_err(i,1) = abs( val_cert(i,1) - val_port(i,1) );
@@ -1255,8 +1212,7 @@ t = 575;
                 final_cert_prices(1,i) = max(values(t, i), 37.5);
             end
         end 
-        
-
+   
     ret_pessimistic = quantile(final_cert_prices, 0.1);
     ret_moderate = quantile(final_cert_prices, 0.5);
     ret_optimistic = quantile(final_cert_prices, 0.9);
@@ -1337,7 +1293,7 @@ values(1,:) = p1;
 % browninan motion 
 
 % fixing r at first date of valuation period 
-r = table2array(valuations(1,10));
+r = table2array(DATA_TABLE_ALL(1,10));
 
         for a = 1:5000   
             for i = 2:t
