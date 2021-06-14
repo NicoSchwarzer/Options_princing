@@ -1,0 +1,39 @@
+function [val] = value_Black_Scholes(S, sigma, r, t)
+
+    H = 29.65;
+    K = 37.5 ;
+    q = r; %  replacing stock drift by risk free rate - see sl. 107
+
+    
+      % now - performing valuation according to Hull, p. 604-606
+
+       % important measurements for final valuation:
+    
+        lambda = (r - q + 0.5*sigma ^2) / sigma ^2  ;
+        y = log(H^2/ S*K)/(sigma*sqrt(t)) + lambda * sigma * sqrt(t);
+        x1 = log(S/H)/(sigma*sqrt(t)) + lambda * sigma* sqrt(t); 
+        y1 = log(H/S)/(sigma*sqrt(t)) + lambda * sigma* sqrt(t);
+
+        % also for p 
+        d1 = (log(S/K) + (r-q+0.5*sigma^2)*t )/ (sigma * sqrt(t));
+        d2 = d1 - sigma * sqrt(t);
+
+        % general put formula 
+        p = K * exp(-r*t) * normcdf(-d2) - S * exp(-q*t) * normcdf(-d1);
+
+        p_di_1 = -S*normcdf(-x1) *exp(-q*t) + K * exp(-r*t) * normcdf(-x1 + sigma * sqrt(t) ) + S *exp(-q*t) * ( normcdf(y) - normcdf(y1) ) * (H/S)^(2*lambda);
+        p_di_2 = - K * exp(-r*t) * ( normcdf(y-sigma*sqrt(t)) - normcdf(y1-sigma*sqrt(t))  )* (H/S) ^ (2*lambda - 2) ;
+        p_di = p_di_1 + p_di_2;
+ 
+        % down_and_out_put = put - put_down_and_in
+        p_do = p - p_di;
+
+        % valuation of certificate:
+        
+        % adding the price of the stock to the (zero-strike)
+        % to the down and out put price 
+        
+        
+        val = S + p_do;
+                
+end
