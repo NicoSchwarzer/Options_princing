@@ -1082,8 +1082,7 @@ hedg_err = ones(18,1);
 values(1,1) = p1;
 
 % delta - also relative amount of stocks in portfolio - using the function
-deltas(1,1) = deltas_compute2(p1, sigma, r, dtg(1,1)/365);
-
+deltas(1,1) = deltas_RP(p1, sigma, r, dtg(1,1)/365);
 
 
 % value of stocks 
@@ -1139,7 +1138,7 @@ for i = 2:18
     hedg_err(i,1) = abs( val_cert(i,1) - val_port(i,1) );
     
     % 6) New delta
-    deltas(i,1) = deltas_compute2( values(i,1) , sigma, r, dtg(i,1)/365);
+    deltas(i,1) = deltas_RP( values(i,1) , sigma, r, dtg(i,1)/365);
 
     % 7) Updating stocks in portfolio 
     stocks_after(i,1) = values(i,1) * deltas(i,1);
