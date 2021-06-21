@@ -1,0 +1,30 @@
+function [delt] = deltas_RP(S, si, r, t)
+
+
+% Using the closed-form solution of the valuation, one can simulate the
+% correponding delta values for each stock price 
+
+    H = 29.65;
+    K = 37.5 ;
+    q = r; %  replacing stock drift by risk free rate - see sl. 107
+
+
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%
+    % pricing derivate with stock price +  0.5 
+    S1 = S + 0.5;
+    
+     value_certificate_higher = value_Black_Scholes(S1, si, r, t);
+
+     %%%%%%%%%%%%%%%%%%%%%%%%%
+    % pricing derivate with stock price -  0.5 
+    S2 = S1 -  1;
+    
+      value_certificate_lower = value_Black_Scholes(S2, si, r, t);
+    
+
+     % now calculating the deltas % 
+     delt = value_certificate_higher - value_certificate_lower;
+
+     
+end
