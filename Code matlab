@@ -4,11 +4,10 @@
 %%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%
 
-disp("Results for the CTDP - Assignment, by Nico Schwarzer, ID: 5632297")
+disp("Results for the CTDP - Assignment, by Nico Schwarzer, ID: 5632297");
 
 % Setting fitting working directory!
-cd("C:/Users/Nico/Documents/Tübingen/2. Sem/Continuous time DP/Code_data")
-
+cd("C:/Users/Nico/Documents/Uni/2. Sem/CTPD");
 
 %%%%%%%%%%%%%%%%%%%%
 %% Payoff - Plots %%
@@ -37,7 +36,7 @@ yline(0.5*1000, "--", 'LineWidth',2.0);
 yline(1200, "--", 'LineWidth',2.0);
 text(50, 600, 'Barrier', 'FontSize', 15);
 text(50, 1300, 'Bonus level', 'FontSize', 15);
-title("Case 1 - Barrier hit", 'FontSize', 18);
+title("Barrier hit", 'FontSize', 18);
 legend({'Payoff of Underlying & certificate' }, 'Location','southeast', 'FontSize', 16);
 set(gca, 'Xtick', [], 'Ytick', []);
 xlabel('Price of Underlying', 'FontSize', 18);
@@ -65,7 +64,7 @@ yline(1200, "--", 'LineWidth',2.0);
 text(50, 600, 'Barrier', 'FontSize', 15);
 text(50, 600, 'Barrier', 'FontSize', 15);
 text(50, 1300, 'Bonus', 'FontSize', 15);
-title("Case 2 - Barrier not hit", 'FontSize', 18);
+title("Barrier not hit", 'FontSize', 18);
 legend({'Payoff of Underlying', 'Payoff of certificate'}, 'Location','southeast', 'FontSize', 16);
 xlabel('Price of Underlying', 'FontSize', 18);
 ylabel('Payoffs', 'FontSize', 18);
@@ -86,7 +85,7 @@ grid;
 % prices of the bonus certificate %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-DATA_TABLE_certificate = readtable("snapshot_history_der_3.csv");
+DATA_TABLE_certificate = readtable("snapshot_history_derivative.csv");
 
 cert_date =  DATA_TABLE_certificate{:,1 };
 Date = datetime(cert_date);
@@ -97,7 +96,8 @@ DATA_TABLE_certificate.Properties.VariableNames = {'Date', 'Closing_cert'};
 
 % checking for NAs
 a = sum(isnan(cert_closing)); % 0 - nice
-disp("There are " + a + " nans in the data table concerning the certificate")
+disp("There are " + a + " nans in the data table concerning the certificate");
+
 
 %re-arranging - so that oldest pbservations are in the upper rows
 DATA_TABLE_certificate = sortrows(DATA_TABLE_certificate);
@@ -107,7 +107,12 @@ DATA_TABLE_certificate = sortrows(DATA_TABLE_certificate);
 % prices of the underlying stock  %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-DATA_TABLE_underlying = readtable("RWE_7_6.csv");
+
+% reading data from 26-02-2016, i.e. 5 years preceding the start of the
+% valuation period. One needs this time window for the 5-year moving avrgae
+% of returns
+
+DATA_TABLE_underlying = readtable("snapshot_history_RWE.csv");
 
 stock_date =  DATA_TABLE_underlying{:,1 };
 Date = datetime(stock_date);
@@ -136,7 +141,7 @@ end
 rol_var_100_close = movstd(stock_closing,100);
 rol_var_250_close = movstd(stock_closing,250);
 
-% calculating (logarithmic) returns
+% calculating (logarithmic) returns 
 ln_returns = diff(log(stock_closing));
 
 % calculating rolling volatitly of stock price returns - for 100 and 250 days
@@ -146,7 +151,7 @@ rol_var_100_ret = movstd(ln_returns,100);
 rol_var_250_ret = movstd(ln_returns,250);
 
 
-% first values of returns and volatiity of returns needs to be added 
+% first values of returns and volatility of returns needs to be added 
 % to ensure same dimensions 
 ln_returns = [0;ln_returns];
 rol_var_100_ret = [0;rol_var_100_ret];
@@ -300,9 +305,9 @@ DATA_TABLE_JOIN2 = outerjoin(DATA_TABLE_JOIN1, DATA_TABLE_interest);
 
 % I only use the last 101 rows - these 101 days will be used as valuation
 % window!
-size_merge = size(DATA_TABLE_JOIN2,1);
+size_merge = size(DATA_TABLE_JOIN2,1) -1;
 s2 = size_merge - 101;
-DATA_TABLE_ALL = DATA_TABLE_JOIN2(s2:s,:);    %calling the final DF 'DATA_TABLE_ALL'
+DATA_TABLE_ALL = DATA_TABLE_JOIN2(s2:size_merge,:);    %calling the final DF 'DATA_TABLE_ALL'
 
 
 % keeping only one date column
@@ -365,6 +370,10 @@ rest_d = str2double(rdc);
 % days until maturity ( T -t in Black Scholes)
 rest_days = linspace(rest_d, (rest_d-101),102)';
 DATA_TABLE_ALL.rest_days = rest_days;
+
+%size(DATA_TABLE_ALL)
+%size(rest_days)
+
 
 % final date of valuation period 
 date_end = DATA_TABLE_ALL.Date(size(DATA_TABLE_ALL,1),1) ;
@@ -995,6 +1004,11 @@ grid();
 %% Replicating Portfolio %%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+
+% Notice: For the RP, I  shall use the "delta_compute" - function, which returns the
+% values of delta based on a simulation, which is based on the mathematical
+% pricing formula 
+
 rng(1);
 
 % considering the time value of 28.02.2021 to 28.08.2022 ( i.e. maturity)
@@ -1009,8 +1023,10 @@ T_first_date = T(3,:);
 p1 = table2array(T_first_date(1,2));
 
 % Further parameters to be used below:
-sigma = table2array(T_first_date(1,6));  % using the rolling volatility of stock returns 
-r = table2array(T(3,10));  % 250-days rolling vola 
+sigma = table2array(T_first_date(1,6));
+
+% using the rolling volatility of stock returns 
+r = table2array(T(3,10));  % risk-free rate
 
 % using a day-count measure of 12 months, 30 days per month here 
 days_to_go = ones(18,1);
@@ -1066,7 +1082,9 @@ hedg_err = ones(18,1);
 values(1,1) = p1;
 
 % delta - also relative amount of stocks in portfolio - using the function
-deltas(1,1) = delta(p1, sigma, r, dtg(1,1)/365);
+deltas(1,1) = deltas_compute2(p1, sigma, r, dtg(1,1)/365);
+
+
 
 % value of stocks 
 stocks_after(1,1) = values(1,1) * deltas(1,1);
@@ -1082,7 +1100,7 @@ val_port(1,1) = stocks_before(1,1) + stocks_before(1,1);
 % value of certificate - using the actual certificate price of 28-02 
 val_cert(1,1) = table2array(T(3,1));
 
-% abs Hedging error 
+% absolute Hedging error 
 hedg_err(1,1) = abs( val_cert(1,1) - val_port(1,1) );
 
 
@@ -1096,6 +1114,8 @@ hedg_err(1,1) = abs( val_cert(1,1) - val_port(1,1) );
 % calculating absolute hedging error as absolute difference of sum of
 % stocks_before and bonds_before (i.e. before updating) and certificate
 % price
+
+
 
 rng(12);
 
@@ -1119,7 +1139,7 @@ for i = 2:18
     hedg_err(i,1) = abs( val_cert(i,1) - val_port(i,1) );
     
     % 6) New delta
-    deltas(i,1) = delta( values(i,1) , sigma, r, dtg(i,1)/365);
+    deltas(i,1) = deltas_compute2( values(i,1) , sigma, r, dtg(i,1)/365);
 
     % 7) Updating stocks in portfolio 
     stocks_after(i,1) = values(i,1) * deltas(i,1);
@@ -1165,6 +1185,7 @@ rng(1);
 
 % I shall firsty run the simulation and then consider the associated
 % payoffs for a 10,000 € investment 
+
 
 %% The simulation %%
 
@@ -1247,11 +1268,11 @@ t = 575;
 %%%%%%%%%%%%%%%%%%%%%
 rng(1);
 
-% computing the 5 year 63 days rolling vola of "ln_returns"
+% computing the 5 year - 63 days rolling vola of "ln_returns"
 var_stressed_vola = movstd(ln_returns, 63);
 
 [n,x] = hist(var_stressed_vola, 400);
-n2 = smoothdata(smoothdata(n));
+n2 = smoothdata(n);
 vola_90 = quantile(var_stressed_vola, 0.9);
 
 %PDF
@@ -1330,7 +1351,7 @@ mins = ones(1,5000);
     o2 = (certificate_disc_q_5 * 326) / (cert_1 * 326) -1;
     
     disp("Results for the stress analysis:");
-    disp("In this case of increase volatility and when taking the 5% quantile of the payoff distribution, an investor would end up with " + o1 + ", which is a " + -1*o2 + " decrease");
+    disp("In this case of increase volatility and when taking the 5% quantile of the payoff distribution, an investor would end up with " + o1 + "€, which is a " + -1*o2 + " decrease");
     
    
     
