@@ -36,4 +36,5 @@ function [val] = value_Black_Scholes(S, sigma, r, t)
         
         val = S + p_do;
                 
+                
 end
