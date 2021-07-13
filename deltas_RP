@@ -2,7 +2,7 @@ function [delt] = deltas_RP(S, si, r, t)
 
 
 % Using the closed-form solution of the valuation, one can simulate the
-% correponding delta values for each stock price 
+% corresponding delta values for each stock price 
 
     H = 29.65;
     K = 37.5 ;
